@@ -33,6 +33,11 @@
         </service>
 
         <activity
+            android:name=".ExoVideoActivity"
+            android:configChanges="orientation|screenSize|layoutDirection"
+            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar"/>
+
+        <activity
             android:name=".EditBookActivity"
             android:exported="false" />
         <activity
@@ -43,10 +48,8 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
     </application>
-
 </manifest>

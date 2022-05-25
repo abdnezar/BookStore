@@ -66,10 +66,11 @@ class MainActivity : AppCompatActivity() , BooksAdapter.OnClick{
                     val name  = book.child("name").value
                     val authorName = book.child("authorName").value
                     val imageUrl = book.child("imageUrl").value
+                    val videoUrl = book.child("videoUrl").value
                     val price = book.child("price").value
                     val rate = book.child("rate").value
                     val realizeDate = book.child("realizeDate").value
-                    val b = Book(book.key!!, name.toString(),authorName.toString(),realizeDate.toString(),rate.toString().toLong(),price.toString().toLong(),imageUrl.toString())
+                    val b = Book(book.key!!, name.toString(),authorName.toString(),realizeDate.toString(),rate.toString().toLong(),price.toString().toLong(),imageUrl.toString(), videoUrl.toString())
                     books.add(b)
                     adapter.setData(books)
                 }
@@ -99,15 +100,18 @@ class MainActivity : AppCompatActivity() , BooksAdapter.OnClick{
 //                    it["realizeDate"] as Timestamp,
                     it["rate"].toString().toLong(),
                     it["price"].toString().toLong(),
-                    it["imageUrl"].toString()
+                    it["imageUrl"].toString(),
+                    it["videoUrl"].toString(),
                 ))
             }
             adapter.setData(books)
         }
     }
 
-    override fun onClickBook(itemId: Int) {
-//        FCMService.sendRemoteNotification("test","abc abc")
+    override fun onClickBook(itemId: Int, book: Book) {
+        val intent = Intent(this, ExoVideoActivity::class.java)
+        intent.putExtra("vUrl", book.videoUrl)
+        startActivity(intent)
     }
 
     override fun onClickEditBook(itemId: Int, book: Book) {

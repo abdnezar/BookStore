@@ -90,6 +90,17 @@
         android:theme="@style/RatingBar"/>
 
     <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/btnEditVideo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="30dp"
+        android:textColor="@color/purple_700"
+        android:fontFamily="sans-serif-black"
+        android:layout_marginTop="15dp"
+        android:background="@drawable/btn_bg"
+        android:text="Edit Video"/>
+
+    <androidx.appcompat.widget.AppCompatButton
         android:id="@+id/btnEditBook"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

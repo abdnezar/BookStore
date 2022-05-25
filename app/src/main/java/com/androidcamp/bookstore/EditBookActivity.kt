@@ -29,8 +29,11 @@ class EditBookActivity : AppCompatActivity() {
     private val rtdb = Firebase.database
     private lateinit var binding: ActivityEditBookBinding
     private var name: String = ""
+    private var oldVideoUrl: String = ""
     private var imgUri: Uri? = null
+    private var videoUri: Uri? = null
     private lateinit var startForBookImageResult: ActivityResultLauncher<Intent>
+    private lateinit var startForBookVideoResult: ActivityResultLauncher<Intent>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,13 +58,37 @@ class EditBookActivity : AppCompatActivity() {
             }
         }
 
+        startForBookVideoResult = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result: ActivityResult ->
+            val resultCode = result.resultCode
+            val data = result.data
+            when (resultCode) {
+                Activity.RESULT_OK -> {
+                    videoUri = data?.data!!
+                    Log.e(TAG, "imgUri: $videoUri")
+                    binding.btnEditVideo.text = videoUri.toString()
+                }
+                ImagePicker.RESULT_ERROR -> {
+                    Toast.makeText(this, ImagePicker.getError(data), Toast.LENGTH_SHORT).show()
+                }
+                else -> {
+                    Toast.makeText(this, "Task Cancelled", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
         rtdb.reference.child(intent.getStringExtra("id")!!).get()
             .addOnSuccessListener {
                 binding.tvBookName.setText(it.child("name").value.toString())
                 binding.tvBookAuthor.setText(it.child("authorName").value.toString())
                 binding.tvBookPrice.setText(it.child("price").value.toString())
                 binding.tiImgUpload.setText(it.child("imageUrl").value.toString())
+                binding.btnEditVideo.setText(it.child("videoUrl").value.toString())
                 binding.ratingBar.rating = it.child("rate").value.toString().toFloat()
+                oldVideoUrl = it.child("videoUrl").value.toString()
+            }.addOnFailureListener {
+                Log.e(TAG, "onFailure: ${it.message}")
+                Toast.makeText(this, "Error: ${it.message}", Toast.LENGTH_SHORT).show()
+                finish()
             }
     }
 
@@ -74,37 +101,44 @@ class EditBookActivity : AppCompatActivity() {
             val price = binding.tvBookPrice.text.toString().toFloat()
             val rating = binding.ratingBar.rating
 
-
             if (name.isNotEmpty() && author.isNotEmpty()) {
+                Toast.makeText(applicationContext, "Wait >>>", Toast.LENGTH_SHORT).show()
                 btn.isEnabled = false
-                val storageRef = Firebase.storage.getReference("booksImages/${UUID.randomUUID()}")
+                val imagesStorageRef = Firebase.storage.getReference("booksImages/${UUID.randomUUID()}")
+                val videoStorageRef = Firebase.storage.getReference("videosImages/${UUID.randomUUID()}")
 
                 // 1- add to storage
                 val iStream = imgUri?.let { contentResolver.openInputStream(it) }
                 val inputData = iStream?.let { getBytes(it) }
                 if (inputData != null) {
-                    storageRef.putBytes(inputData)
-                        .addOnSuccessListener {
-                            Toast.makeText(applicationContext, "Step 1 DONE", Toast.LENGTH_LONG).show()
+                    imagesStorageRef.putBytes(inputData).addOnSuccessListener {
+                        imagesStorageRef.downloadUrl.addOnSuccessListener { bookUrl ->
 
-                            // 2- get storage url
-                            storageRef.downloadUrl
-                                .addOnSuccessListener {
-                                    Toast.makeText(applicationContext, "Step 2 DONE", Toast.LENGTH_LONG).show()
+                            // 2- add video to storage
+                            val iStream = videoUri?.let { contentResolver.openInputStream(it) }
+                            val inputData = iStream?.let { getBytes(it) }
+                            if (inputData != null) {
+                                videoStorageRef.putBytes(inputData).addOnSuccessListener {
+                                    Toast.makeText(applicationContext, "DONE", Toast.LENGTH_LONG).show()
 
-                                    // 3- add to fireStore OR RTDB
-                                    val book = Book(name, author, Timestamp.now().toDate().toString(), rating.toLong(), price.toLong(), it.toString())
-//                                    updateFirestore(book)
-                                    updateRTDB(book)
-
-                                }.addOnFailureListener {
-                                    Log.e(TAG, "onResume: ${it.message}")
-                                    btn.isEnabled = true
+                                    // 2- get storage url
+                                    videoStorageRef.downloadUrl.addOnSuccessListener { videoUrl ->
+                                        val book = Book(name, author, Timestamp.now().toDate().toString(), rating.toLong(), price.toLong(), bookUrl.toString(), videoUrl.toString())
+                                        // 3- add to fireStore OR RTDB
+                                        // addToFirestore(book)
+                                        updateRTDB(book)
+                                    }
                                 }
+                            }
+
                         }.addOnFailureListener {
                             Log.e(TAG, "onResume: ${it.message}")
                             btn.isEnabled = true
                         }
+                    }.addOnFailureListener {
+                        Log.e(TAG, "onResume: ${it.message}")
+                        btn.isEnabled = true
+                    }
                 } else {
                     Toast.makeText(applicationContext, "Choose Image", Toast.LENGTH_SHORT).show()
                     btn.isEnabled = true
@@ -117,6 +151,10 @@ class EditBookActivity : AppCompatActivity() {
 
         binding.tiImgUpload.setOnFocusChangeListener { v, hasFocus ->
             getImage()
+        }
+
+        binding.btnEditVideo.setOnClickListener {
+            getVideo()
         }
 
         binding.btnDeleteBook.setOnClickListener {
@@ -133,7 +171,7 @@ class EditBookActivity : AppCompatActivity() {
                 finish()
             }.addOnFailureListener {
                 Toast.makeText(applicationContext, "Deleted Failed!!", Toast.LENGTH_SHORT).show()
-                Log.e(TAG, "onResume: ${it.message}", )
+                Log.e(TAG, "onResume: ${it.message}")
             }
     }
 
@@ -147,7 +185,6 @@ class EditBookActivity : AppCompatActivity() {
             Log.e(TAG, "onResume: ${it.message}", )
         }
     }
-
 
     private fun updateRTDB(book: Book) {
         rtdb.reference.child(intent.getStringExtra("id")!!).setValue(book)
@@ -191,6 +228,19 @@ class EditBookActivity : AppCompatActivity() {
             .maxResultSize(1080, 1080)  //Final image resolution will be less than 1080 x 1080(Optional)
             .createIntent { intent ->
                 startForBookImageResult.launch(intent)
+            }
+    }
+
+    private fun getVideo() {
+        ImagePicker.with(this)
+            .galleryOnly()
+            .galleryMimeTypes(  //Exclude gif images
+                mimeTypes = arrayOf(
+                    "video/*"
+                )
+            )
+            .createIntent { intent ->
+                startForBookVideoResult.launch(intent)
             }
     }
 }

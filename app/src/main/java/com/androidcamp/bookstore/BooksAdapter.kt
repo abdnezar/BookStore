@@ -38,7 +38,7 @@ class BooksAdapter(private val context: Context, private val click: OnClick) : R
             .into(holder.binding.ivBook)
 
         holder.binding.root.setOnClickListener {
-            click.onClickBook(position)
+            click.onClickBook(position, book)
         }
         holder.binding.btnEdit.setOnClickListener {
             click.onClickEditBook(position, book)
@@ -51,7 +51,7 @@ class BooksAdapter(private val context: Context, private val click: OnClick) : R
     }
 
     interface OnClick {
-        fun onClickBook(itemId: Int)
+        fun onClickBook(itemId: Int, book: Book)
         fun onClickEditBook(itemId: Int, book: Book)
     }
 }

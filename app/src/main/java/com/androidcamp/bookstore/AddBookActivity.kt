@@ -28,7 +28,9 @@ class AddBookActivity : AppCompatActivity() {
     private val rtdb = Firebase.database
     private lateinit var binding: ActivityAddBookBinding
     private var imgUri: Uri? = null
+    private var videoUri: Uri? = null
     private lateinit var startForBookImageResult: ActivityResultLauncher<Intent>
+    private lateinit var startForBookVideoResult: ActivityResultLauncher<Intent>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,6 +54,24 @@ class AddBookActivity : AppCompatActivity() {
                 }
             }
         }
+
+        startForBookVideoResult = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result: ActivityResult ->
+            val resultCode = result.resultCode
+            val data = result.data
+            when (resultCode) {
+                Activity.RESULT_OK -> {
+                    videoUri = data?.data!!
+                    Log.e(TAG, "imgUri: $videoUri")
+                    binding.btnAddVideo.text = videoUri.toString()
+                }
+                ImagePicker.RESULT_ERROR -> {
+                    Toast.makeText(this, ImagePicker.getError(data), Toast.LENGTH_SHORT).show()
+                }
+                else -> {
+                    Toast.makeText(this, "Task Cancelled", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     override fun onResume() {
@@ -64,35 +84,42 @@ class AddBookActivity : AppCompatActivity() {
             val rating = binding.ratingBar.rating
 
             if (name.isNotEmpty() && author.isNotEmpty()) {
+                Toast.makeText(applicationContext, "Wait >>>", Toast.LENGTH_SHORT).show()
                 btn.isEnabled = false
-                val storageRef = Firebase.storage.getReference("booksImages/${UUID.randomUUID()}")
+                val imagesStorageRef = Firebase.storage.getReference("booksImages/${UUID.randomUUID()}")
+                val videosStorageRef = Firebase.storage.getReference("videosImages/${UUID.randomUUID()}")
 
-                // 1- add to storage
+                // 1- add image to storage
                 val iStream = imgUri?.let { contentResolver.openInputStream(it) }
                 val inputData = iStream?.let { getBytes(it) }
                 if (inputData != null) {
-                    storageRef.putBytes(inputData)
-                        .addOnSuccessListener {
-                            Toast.makeText(applicationContext, "Step 1 DONE", Toast.LENGTH_LONG).show()
+                    imagesStorageRef.putBytes(inputData).addOnSuccessListener {
+                        imagesStorageRef.downloadUrl.addOnSuccessListener { bookUrl ->
 
-                            // 2- get storage url
-                            storageRef.downloadUrl
-                                .addOnSuccessListener {
-                                    Toast.makeText(applicationContext, "Step 2 DONE", Toast.LENGTH_LONG).show()
+                            // 2- add video to storage
+                            val iStream = videoUri?.let { contentResolver.openInputStream(it) }
+                            val inputData = iStream?.let { getBytes(it) }
+                            if (inputData != null) {
+                                videosStorageRef.putBytes(inputData).addOnSuccessListener {
+                                    Toast.makeText(applicationContext, "DONE", Toast.LENGTH_LONG).show()
 
-
-                                    val book = Book(name, author, Timestamp.now().toDate().toString(), rating.toLong(), price.toLong(), it.toString())
-                                    // 3- add to fireStore OR RTDB
-                                    // addToFirestore(book)
-                                    addToRTDB(book)
-                                }.addOnFailureListener {
-                                    Log.e(TAG, "onResume: ${it.message}")
-                                    btn.isEnabled = true
+                                    // 2- get storage url
+                                    videosStorageRef.downloadUrl.addOnSuccessListener { videoUrl ->
+                                        val book = Book(name, author, Timestamp.now().toDate().toString(), rating.toLong(), price.toLong(), bookUrl.toString(), videoUrl.toString())
+                                        // 3- add to fireStore OR RTDB
+                                        // addToFirestore(book)
+                                        addToRTDB(book)
+                                    }
                                 }
+                            }
                         }.addOnFailureListener {
                             Log.e(TAG, "onResume: ${it.message}")
                             btn.isEnabled = true
                         }
+                    }.addOnFailureListener {
+                        Log.e(TAG, "onResume: ${it.message}")
+                        btn.isEnabled = true
+                    }
                 } else {
                     Toast.makeText(applicationContext, "No Image Selected!!", Toast.LENGTH_SHORT).show()
                     btn.isEnabled = true
@@ -105,6 +132,10 @@ class AddBookActivity : AppCompatActivity() {
 
         binding.tiImgUpload.setOnFocusChangeListener { v, hasFocus ->
             getImage()
+        }
+
+        binding.btnAddVideo.setOnClickListener {
+            getVideo()
         }
     }
 
@@ -149,6 +180,19 @@ class AddBookActivity : AppCompatActivity() {
             .maxResultSize(1080, 1080)  //Final image resolution will be less than 1080 x 1080(Optional)
             .createIntent { intent ->
                 startForBookImageResult.launch(intent)
+            }
+    }
+
+    private fun getVideo() {
+        ImagePicker.with(this)
+            .galleryOnly()
+            .galleryMimeTypes(  //Exclude gif images
+                mimeTypes = arrayOf(
+                    "video/*"
+                )
+            )
+            .createIntent { intent ->
+                startForBookVideoResult.launch(intent)
             }
     }
 }
